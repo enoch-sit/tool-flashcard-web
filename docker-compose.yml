@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Frontend application
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/client/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - flashcard-network
+      - auth-network  # Added auth network for communication
+
+  # Backend API
+  server:
+    build:
+      context: ./server
+      dockerfile: ../docker/server/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/flashcard_db
+      - AUTH_API_URL=http://auth-service-dev:3000  # Updated to use existing auth service
+    depends_on:
+      - mongo
+    networks:
+      - flashcard-network
+      - auth-network  # Connect to the existing auth network
+
+  # MongoDB
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27018:27017"  # Changed port to avoid conflict with auth-mongodb
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - flashcard-network
+
+networks:
+  flashcard-network:
+    driver: bridge
+  auth-network:
+    external: true
+    name: boilerplate-accounting-nodejs-typescript_auth-network  # Using the exact network name
+
+volumes:
+  mongo-data:

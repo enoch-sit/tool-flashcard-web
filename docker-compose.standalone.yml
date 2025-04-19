@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Frontend application
+  client:
+    build:
+      context: ./client
+      dockerfile: ../docker/client/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - flashcard-network
+
+  # Backend API
+  server:
+    build:
+      context: ./server
+      dockerfile: ../docker/server/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/flashcard_db
+      - AUTH_API_URL=http://auth-service:3000
+    depends_on:
+      - mongo
+      - auth-service
+    networks:
+      - flashcard-network
+      - auth-network
+
+  # MongoDB
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - flashcard-network
+      - auth-network
+
+  # Mock Authentication Service
+  auth-service:
+    build:
+      context: ./docker/auth-mock
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/auth_db
+      - JWT_ACCESS_SECRET=dev_access_secret
+      - JWT_REFRESH_SECRET=dev_refresh_secret
+      - JWT_ACCESS_EXPIRES_IN=15m
+      - JWT_REFRESH_EXPIRES_IN=7d
+    depends_on:
+      - mongo
+    networks:
+      - auth-network
+    volumes:
+      - auth-data:/data
+
+  # Mail testing service for auth emails
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - auth-network
+
+networks:
+  flashcard-network:
+  auth-network:
+
+volumes:
+  mongo-data:
+  auth-data:

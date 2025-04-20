@@ -1,10 +1,16 @@
-import '../types'; // Import custom type definitions
+import '../types.d.ts'; // Import custom type definitions
 
 import mongoose from 'mongoose';
 import { Request, Response } from 'express';
 import * as cardController from '../../src/controllers/card.controller';
 import { Card, Deck } from '../../src/models';
 import creditService from '../../src/services/credit.service';
+
+// Define ReviewRecord interface to match the one in card.model.ts
+interface ReviewRecord {
+  date: Date;
+  performance: number; // 1-5 rating
+}
 
 // Mock the credit service
 jest.mock('../../src/services/credit.service');
@@ -493,7 +499,7 @@ describe('Card Controller Tests', () => {
         _id: mockCardId,
         deckId: mockDeckId,
         nextReviewDate: new Date(),
-        reviewHistory: [],
+        reviewHistory: [] as ReviewRecord[],
         difficulty: 1,
         save: jest.fn().mockResolvedValue(true)
       };
@@ -514,7 +520,7 @@ describe('Card Controller Tests', () => {
       
       // Check that review was recorded
       expect(mockCard.reviewHistory.length).toBe(1);
-      expect(mockCard.reviewHistory[0].performance).toBe(3);
+      expect(mockCard.reviewHistory[0]?.performance).toBe(3);
       expect(mockCard.save).toHaveBeenCalled();
       
       // Check response
@@ -533,7 +539,7 @@ describe('Card Controller Tests', () => {
         reviewHistory: [
           { date: new Date(), performance: 2 },
           { date: new Date(), performance: 1 }
-        ],
+        ] as ReviewRecord[],
         difficulty: 3,
         save: jest.fn().mockResolvedValue(true)
       };

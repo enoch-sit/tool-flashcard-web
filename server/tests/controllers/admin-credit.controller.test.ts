@@ -1,4 +1,4 @@
-import '../types'; // Import custom type definitions
+import '../types.d.ts'; // Import custom type definitions
 
 import mongoose from 'mongoose';
 import { Request, Response } from 'express';
@@ -365,11 +365,15 @@ describe('Admin Credit Controller Tests', () => {
       
       const mockPackage = await CreditPackage.findById(mockPackageId);
       
-      expect(mockPackage.name).toBe('Updated Package');
-      expect(mockPackage.description).toBe('Updated description');
-      expect(mockPackage.credits).toBe(100);
-      expect(mockPackage.price).toBe(899);
-      expect(mockPackage.save).toHaveBeenCalled();
+      // Add null check to satisfy TypeScript
+      expect(mockPackage).not.toBeNull();
+      if (mockPackage) {
+        expect(mockPackage.name).toBe('Updated Package');
+        expect(mockPackage.description).toBe('Updated description');
+        expect(mockPackage.credits).toBe(100);
+        expect(mockPackage.price).toBe(899);
+        expect(mockPackage.save).toHaveBeenCalled();
+      }
       
       expect(mockResponse.status).toHaveBeenCalledWith(200);
       expect(responseObject.message).toBe('Credit package updated successfully');
@@ -395,9 +399,13 @@ describe('Admin Credit Controller Tests', () => {
       };
       
       const originalPackage = await CreditPackage.findById(mockPackageId);
-      const originalDescription = originalPackage.description;
-      const originalCredits = originalPackage.credits;
-      const originalPrice = originalPackage.price;
+      // Add null check for originalPackage
+      expect(originalPackage).not.toBeNull();
+      
+      // Store original values in variables (if not null)
+      const originalDescription = originalPackage?.description;
+      const originalCredits = originalPackage?.credits;
+      const originalPrice = originalPackage?.price;
       
       await adminCreditController.updateCreditPackage(
         mockRequest as Request,
@@ -405,17 +413,31 @@ describe('Admin Credit Controller Tests', () => {
       );
       
       const updatedPackage = await CreditPackage.findById(mockPackageId);
+      // Add null check for updatedPackage
+      expect(updatedPackage).not.toBeNull();
       
-      expect(updatedPackage.name).toBe('Just Name Update');
-      // Other fields should remain unchanged
-      expect(updatedPackage.description).toBe(originalDescription);
-      expect(updatedPackage.credits).toBe(originalCredits);
-      expect(updatedPackage.price).toBe(originalPrice);
+      // Only check fields if the package exists
+      if (updatedPackage) {
+        expect(updatedPackage.name).toBe('Just Name Update');
+        // Other fields should remain unchanged
+        expect(updatedPackage.description).toBe(originalDescription);
+        expect(updatedPackage.credits).toBe(originalCredits);
+        expect(updatedPackage.price).toBe(originalPrice);
+      }
     });
     
     it('should handle errors properly', async () => {
+      // Get the mockPackage from the spy
       const mockPackage = await CreditPackage.findById(mockPackageId);
-      mockPackage.save.mockRejectedValueOnce(new Error('Database error'));
+      expect(mockPackage).not.toBeNull();
+      
+      // Create a proper Jest mock function that rejects with an error
+      const saveMock = jest.fn().mockRejectedValueOnce(new Error('Database error'));
+      
+      // Replace the save method with our mock
+      if (mockPackage) {
+        mockPackage.save = saveMock;
+      }
       
       await adminCreditController.updateCreditPackage(
         mockRequest as Request,
@@ -546,18 +568,31 @@ describe('Admin Credit Controller Tests', () => {
     });
     
     it('should handle errors properly', async () => {
-      jest.spyOn(CreditTransaction, 'find').mockReturnValueOnce({
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockRejectedValueOnce(new Error('Database error'))
-      } as any);
+      // Mock CreditTransaction.find to throw an error
+      jest.spyOn(CreditTransaction, 'find').mockImplementationOnce(() => {
+        throw new Error('Database error');
+      });
+      
+      // Mock CreditTransaction.countDocuments to also throw an error if it gets called
+      jest.spyOn(CreditTransaction, 'countDocuments').mockImplementationOnce(() => {
+        throw new Error('Database error');
+      });
+      
+      // Create a new response object for this test to avoid issues with shared state
+      const localMockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockImplementation(result => {
+          responseObject = result;
+          return localMockResponse;
+        })
+      };
       
       await adminCreditController.getAllCreditTransactions(
         mockRequest as Request,
-        mockResponse as Response
+        localMockResponse as any
       );
       
-      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(localMockResponse.status).toHaveBeenCalledWith(500);
       expect(responseObject.message).toBe('Failed to fetch credit transactions');
     });
   });

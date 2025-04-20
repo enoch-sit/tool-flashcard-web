@@ -1,4 +1,4 @@
-import '../types'; // Import custom type definitions
+import '../types.d.ts'; // Import custom type definitions
 
 import mongoose from 'mongoose';
 import creditService from '../../src/services/credit.service';
@@ -13,6 +13,46 @@ interface TransactionItem {
   transactionType: string;
   createdAt: Date;
 }
+
+// Mock MongoDB sessions for transactions
+const mockSession = {
+  startTransaction: jest.fn(),
+  commitTransaction: jest.fn(),
+  abortTransaction: jest.fn(),
+  endSession: jest.fn()
+};
+
+// Mock the startSession method globally for all tests
+beforeAll(() => {
+  // @ts-ignore - we're intentionally mocking this method
+  UserCredits.startSession = jest.fn().mockResolvedValue(mockSession);
+  
+  // Mock the session option to be ignored in mongoose operations
+  const originalFindOneAndUpdate = UserCredits.findOneAndUpdate;
+  // @ts-ignore - we're intentionally mocking this method
+  UserCredits.findOneAndUpdate = jest.fn().mockImplementation(function(filter, update, options) {
+    // Remove session from options to avoid transaction requirements
+    const { session, ...restOptions } = options || {};
+    return originalFindOneAndUpdate.call(this, filter, update, restOptions);
+  });
+  
+  // Mock create to bypass session
+  const originalCreate = CreditTransaction.create;
+  // @ts-ignore - we're intentionally mocking this method
+  CreditTransaction.create = jest.fn().mockImplementation(function(docs, options) {
+    // Remove session from options to avoid transaction requirements
+    const { session, ...restOptions } = options || {};
+    return originalCreate.call(this, docs, restOptions);
+  });
+});
+
+// Clear mocks between tests
+beforeEach(() => {
+  mockSession.startTransaction.mockClear();
+  mockSession.commitTransaction.mockClear();
+  mockSession.abortTransaction.mockClear();
+  mockSession.endSession.mockClear();
+});
 
 describe('Credit Service Tests', () => {
   const mockUserId = new mongoose.Types.ObjectId().toString();

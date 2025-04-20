@@ -1,4 +1,4 @@
-import '../types'; // Import custom type definitions
+import '../types.d.ts'; // Import custom type definitions
 
 import mongoose from 'mongoose';
 import { Request, Response } from 'express';

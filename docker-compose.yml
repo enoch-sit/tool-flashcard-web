@@ -25,6 +25,7 @@ services:
       - NODE_ENV=development
       - MONGO_URI=mongodb://mongo:27017/flashcard_db
       - AUTH_API_URL=http://auth-service-dev:3000  # Updated to use existing auth service
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}  # Add JWT secret key for local token verification
     depends_on:
       - mongo
     networks:

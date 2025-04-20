@@ -29,6 +29,16 @@ A comprehensive web-based flashcard application with credit-based system for cre
     - [Admin Endpoints](#admin-endpoints)
   - [Project Structure](#project-structure)
   - [JWT Authentication Configuration](#jwt-authentication-configuration)
+    - [Setting Up JWT Secret Keys](#setting-up-jwt-secret-keys)
+    - [Method 1: Using Environment Variables (Recommended for Production)](#method-1-using-environment-variables-recommended-for-production)
+    - [Method 2: Using an .env File](#method-2-using-an-env-file)
+    - [Method 3: Setting Variables Directly in docker-compose.standalone.yml](#method-3-setting-variables-directly-in-docker-composestandaloneyml)
+    - [Understanding the MongoDB Configuration](#understanding-the-mongodb-configuration)
+    - [JWT Secret Keys for Both Deployment Models](#jwt-secret-keys-for-both-deployment-models)
+      - [Setting Up JWT Secrets in Standalone Mode](#setting-up-jwt-secrets-in-standalone-mode)
+      - [Setting Up JWT Secrets in Integration Mode](#setting-up-jwt-secrets-in-integration-mode)
+      - [Verifying Configuration](#verifying-configuration)
+      - [Configuration in Production Environments](#configuration-in-production-environments)
   - [Contributing](#contributing)
   - [License](#license)
 
@@ -379,6 +389,91 @@ The application uses two separate MongoDB databases:
 2. **Main Service Database**: `flashcard_db` - Stores application data (cards, decks, credits)
 
 While both databases use the same MongoDB container in development, you can configure separate MongoDB instances in production for better security and scalability.
+
+### JWT Secret Keys for Both Deployment Models
+
+This application supports two deployment models:
+
+1. **Standalone mode** (`docker-compose.standalone.yml`): Includes a mock authentication service
+2. **Integration mode** (`docker-compose.yml`): Connects to an existing external authentication service
+
+#### Setting Up JWT Secrets in Standalone Mode
+
+When using standalone mode, both the server and auth-service containers are configured to share the same JWT secrets through environment variables:
+
+```bash
+# Generate secure random strings for production
+JWT_ACCESS_SECRET=$(openssl rand -base64 32)
+JWT_REFRESH_SECRET=$(openssl rand -base64 32)
+
+# Export as environment variables
+export JWT_ACCESS_SECRET
+export JWT_REFRESH_SECRET
+
+# Run the application with the secure secrets
+docker-compose -f docker-compose.standalone.yml up -d
+```
+
+#### Setting Up JWT Secrets in Integration Mode
+
+When integrating with an existing authentication service, you need to ensure your main application uses the same JWT access secret as the external auth service:
+
+1. Obtain the JWT access secret from the external authentication service administrators
+2. Deploy using that secret:
+
+```bash
+# Set the JWT access secret to match the external auth service
+export JWT_ACCESS_SECRET="the-same-secret-used-by-external-auth-service"
+
+# Run the application with the correct secret
+docker-compose up -d
+```
+
+Windows cmd:
+
+```cmd
+set JWT_ACCESS_SECRET=the-same-secret-used-by-external-auth-service
+
+REM Run the application with the correct secret
+docker-compose up -d
+```
+
+Windows Powershell:
+
+```powershell
+$env:JWT_ACCESS_SECRET = "the-same-secret-used-by-external-auth-service"
+
+# Run the application with the correct secret
+docker-compose up -d
+```
+
+#### Verifying Configuration
+
+To verify that your JWT secret configuration is working correctly:
+
+1. Log into the application
+2. Perform an action that requires authentication (like viewing a deck)
+3. Check the server logs for token validation messages:
+   - If functioning correctly, you'll see no token validation errors
+   - If misconfigured, you'll see "Local JWT verification failed, falling back to remote validation" messages
+
+```bash
+# View server logs to check for JWT validation errors
+docker-compose logs server | grep "JWT"
+```
+
+#### Configuration in Production Environments
+
+For production deployments:
+
+1. **Never store secrets in version control**
+2. Use a secrets management system appropriate for your hosting platform:
+   - AWS Secrets Manager or Parameter Store for AWS deployments
+   - Azure Key Vault for Azure deployments
+   - Environment variables secured through your CI/CD platform
+   - Docker secrets for Docker Swarm deployments
+
+3. Set up secrets rotation policies and procedures
 
 ## Contributing
 

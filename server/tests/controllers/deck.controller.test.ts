@@ -460,6 +460,7 @@ describe('Deck Controller Tests', () => {
     });
     
     it('should filter decks by search query', async () => {
+      mockRequest.query = mockRequest.query || {};
       mockRequest.query.query = 'javascript';
       
       await deckController.getPublicDecks(
@@ -473,6 +474,7 @@ describe('Deck Controller Tests', () => {
     });
     
     it('should handle pagination correctly', async () => {
+      mockRequest.query = mockRequest.query || {};
       mockRequest.query.page = '2';
       mockRequest.query.limit = '5';
       

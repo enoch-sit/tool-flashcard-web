@@ -11,7 +11,8 @@ This document explains the authentication workflows for all server endpoints in 
 5. [Endpoint Authentication Types](#endpoint-authentication-types)
 6. [Client-Side Authentication Flow](#client-side-authentication-flow)
 7. [Server-Side Authentication Flow](#server-side-authentication-flow)
-8. [JWT Design Considerations](#jwt-design-considerations)
+8. [Detailed Endpoint Authentication](#detailed-endpoint-authentication)
+9. [JWT Design Considerations](#jwt-design-considerations)
 
 ## Authentication Overview
 
@@ -276,6 +277,247 @@ In development, the authentication service is mocked by a simple Express server 
 1. Provides authentication endpoints (signup, login, etc.)
 2. Handles token generation and validation
 3. Creates default test users (admin and regular user)
+
+## Detailed Endpoint Authentication
+
+This section details how JWT authentication works for each specific endpoint in the application, and how the token flows from the browser to the server.
+
+### JWT Flow Between Browser, Server and Auth Service
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Client App
+    participant Main Server
+    participant Auth Server
+    participant MongoDB
+    
+    Note over Browser,MongoDB: Initial Authentication
+    Browser->>Client App: User enters credentials
+    Client App->>Auth Server: POST /api/auth/login
+    Auth Server->>MongoDB: Verify credentials
+    MongoDB-->>Auth Server: User exists & password valid
+    Auth Server->>Auth Server: Generate JWT tokens with secret key
+    Auth Server-->>Client App: Return tokens
+    Client App->>Browser: Store tokens (localStorage)
+    
+    Note over Browser,MongoDB: Authenticated Request
+    Browser->>Client App: User performs action
+    Client App->>Client App: Get token from localStorage
+    Client App->>Main Server: API request with Authorization: Bearer {token}
+    Main Server->>Auth Server: Validate token (shared secret key)
+    Auth Server->>Auth Server: Verify token signature
+    Auth Server-->>Main Server: Token valid + user info
+    Main Server->>Main Server: Process request
+    Main Server-->>Client App: Return response
+    Client App-->>Browser: Display result
+```
+
+The key aspects of this flow:
+
+1. **Secret Key Sharing**:
+   - Both the Authentication Server and Main Server share the same JWT secret key
+   - This allows the Main Server to validate tokens without constantly asking the Auth Server
+   - The shared secret is typically stored in environment variables on both servers
+
+2. **Token Validation**:
+   - When the Main Server receives a request with a JWT, it has two options:
+     1. **Local Validation**: Using the shared secret key to verify the token signature directly
+     2. **Remote Validation**: Calling the Auth Server's validation endpoint
+
+3. **Security Considerations**:
+   - The shared secret must be kept secure on both servers
+   - Communication between servers should be encrypted
+   - Regular rotation of the shared secret is recommended
+
+### Card Endpoints Authentication
+
+| Endpoint | Method | Description | Access Level | Authentication Flow |
+|----------|--------|-------------|--------------|---------------------|
+| `/api/cards/deck/:deckId` | GET | Get all cards for a specific deck | Authenticated | JWT verification + Owner verification |
+| `/api/cards` | POST | Create a new card (costs credits) | Authenticated | JWT verification + Credit check |
+| `/api/cards/:id` | GET | Get a specific card | Authenticated | JWT verification + Owner/Access verification |
+| `/api/cards/:id` | PUT | Update a specific card | Authenticated | JWT verification + Owner verification |
+| `/api/cards/:id` | DELETE | Delete a specific card | Authenticated | JWT verification + Owner verification |
+| `/api/cards/:id/review` | POST | Record a review result for a card | Authenticated | JWT verification + Owner verification |
+
+#### Example Card Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Client
+    participant Server
+    participant Auth
+    participant DB
+    
+    Browser->>Client: User clicks "Create Card"
+    Client->>Client: Get token from localStorage
+    Client->>Server: POST /api/cards with JWT
+    Server->>Auth: Validate token
+    Auth-->>Server: Valid token + user info
+    Server->>DB: Check user credit balance
+    DB-->>Server: Credit balance
+    
+    alt Sufficient credits
+        Server->>DB: Create card & deduct credits
+        DB-->>Server: Success
+        Server-->>Client: 201 Created
+        Client-->>Browser: Show success message
+    else Insufficient credits
+        Server-->>Client: 402 Payment Required
+        Client-->>Browser: Show "Need more credits" message
+    end
+```
+
+### Deck Endpoints Authentication
+
+| Endpoint | Method | Description | Access Level | Authentication Flow |
+|----------|--------|-------------|--------------|---------------------|
+| `/api/decks` | GET | Get all decks for user | Authenticated | JWT verification |
+| `/api/decks` | POST | Create a new deck | Authenticated | JWT verification |
+| `/api/decks/:id` | GET | Get a specific deck | Authenticated | JWT verification + Owner/Access verification |
+| `/api/decks/:id` | PUT | Update a specific deck | Authenticated | JWT verification + Owner verification |
+| `/api/decks/:id` | DELETE | Delete a specific deck | Authenticated | JWT verification + Owner verification |
+
+#### Example Deck Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Client
+    participant Server
+    participant Auth
+    participant DB
+    
+    Browser->>Client: User navigates to decks
+    Client->>Client: Get token from localStorage
+    Client->>Server: GET /api/decks with JWT
+    Server->>Auth: Validate token
+    Auth-->>Server: Valid token + user info
+    Server->>DB: Get decks for user ID
+    DB-->>Server: User's decks
+    Server-->>Client: 200 OK with decks
+    Client-->>Browser: Display decks
+```
+
+### Credit System Endpoints Authentication
+
+| Endpoint | Method | Description | Access Level | Authentication Flow |
+|----------|--------|-------------|--------------|---------------------|
+| `/api/credits/balance` | GET | Get user's credit balance | Authenticated | JWT verification |
+| `/api/credits/packages` | GET | Get available credit packages | Authenticated | JWT verification |
+| `/api/credits/purchase` | POST | Purchase a credit package | Authenticated | JWT verification + Payment verification |
+| `/api/credits/history` | GET | Get transaction history | Authenticated | JWT verification |
+
+#### Example Credit Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Client
+    participant Server
+    participant Auth
+    participant DB
+    participant Payment
+    
+    Browser->>Client: User purchases credits
+    Client->>Client: Get token from localStorage
+    Client->>Server: POST /api/credits/purchase with JWT
+    Server->>Auth: Validate token
+    Auth-->>Server: Valid token + user info
+    Server->>Payment: Process payment
+    
+    alt Payment successful
+        Payment-->>Server: Payment confirmation
+        Server->>DB: Add credits to user
+        DB-->>Server: Updated credits
+        Server-->>Client: 200 Success
+        Client-->>Browser: Show updated balance
+    else Payment failed
+        Payment-->>Server: Payment error
+        Server-->>Client: 400 Payment failed
+        Client-->>Browser: Show error message
+    end
+```
+
+### Admin Endpoints Authentication
+
+| Endpoint | Method | Description | Access Level | Authentication Flow |
+|----------|--------|-------------|--------------|---------------------|
+| `/api/admin/users` | GET | Get all users with credits | Admin | JWT verification + Admin role check |
+| `/api/admin/users/:userId/credits` | POST | Adjust user credits | Admin | JWT verification + Admin role check |
+| `/api/admin/packages` | GET | Get all credit packages | Admin | JWT verification + Admin role check |
+| `/api/admin/packages` | POST | Create a credit package | Admin | JWT verification + Admin role check |
+| `/api/admin/packages/:id` | PUT | Update a credit package | Admin | JWT verification + Admin role check |
+| `/api/admin/packages/:id` | DELETE | Delete a credit package | Admin | JWT verification + Admin role check |
+| `/api/admin/transactions` | GET | Get all credit transactions | Admin | JWT verification + Admin role check |
+
+#### Example Admin Endpoint Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Client
+    participant Server
+    participant Auth
+    participant DB
+    
+    Browser->>Client: Admin accesses user list
+    Client->>Client: Get token from localStorage
+    Client->>Server: GET /api/admin/users with JWT
+    Server->>Auth: Validate token
+    Auth-->>Server: Valid token + user info
+    
+    alt User has admin role
+        Server->>DB: Get all users
+        DB-->>Server: Users data
+        Server-->>Client: 200 Success with users
+        Client-->>Browser: Display users
+    else User lacks admin role
+        Server-->>Client: 403 Forbidden
+        Client-->>Browser: Show "Access denied" message
+    end
+```
+
+### JWT Verification Process in the Middleware
+
+The authentication middleware processes every request to protected endpoints as follows:
+
+```mermaid
+flowchart TD
+    A[Request with JWT] --> B{Extract JWT from header}
+    B --> C{Shared secret available?}
+    
+    C -->|Yes| D[Verify JWT locally]
+    C -->|No| E[Call Auth Server]
+    
+    D --> F{JWT valid?}
+    E --> F
+    
+    F -->|Yes| G{Check user role}
+    F -->|No| H[Return 401 Unauthorized]
+    
+    G -->|Role sufficient| I[Proceed to endpoint handler]
+    G -->|Role insufficient| J[Return 403 Forbidden]
+```
+
+The auth middleware (`server/src/middleware/auth.middleware.ts`) validates the JWT token and extracts the user information. For admin endpoints, the `requireAdmin` middleware performs an additional check to ensure the user has admin privileges.
+
+### Shared Secret Key Management
+
+The main server and authentication server need to share the same secret key to validate tokens. This is typically managed through environment variables:
+
+```
+# On Auth Server
+JWT_ACCESS_SECRET=your-secure-access-token-secret
+JWT_REFRESH_SECRET=your-secure-refresh-token-secret
+
+# On Main Server 
+JWT_ACCESS_SECRET=your-secure-access-token-secret
+```
+
+In a development environment, these values might be hardcoded, but in production, they should be securely managed through environment variables or a secret management service.
 
 ## JWT Design Considerations
 

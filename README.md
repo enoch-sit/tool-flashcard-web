@@ -28,6 +28,7 @@ A comprehensive web-based flashcard application with credit-based system for cre
     - [Credit System Endpoints](#credit-system-endpoints)
     - [Admin Endpoints](#admin-endpoints)
   - [Project Structure](#project-structure)
+  - [JWT Authentication Configuration](#jwt-authentication-configuration)
   - [Contributing](#contributing)
   - [License](#license)
 
@@ -313,6 +314,71 @@ flashcard-web/
 │       └── utils/          # Utility functions
 └── docker/                 # Docker configuration files
 ```
+
+## JWT Authentication Configuration
+
+### Setting Up JWT Secret Keys
+
+For proper authentication between the main application and the authentication service, both need to share the same JWT secret keys. This is crucial for token validation to work correctly.
+
+### Method 1: Using Environment Variables (Recommended for Production)
+
+When deploying with Docker Compose, you can set the JWT secrets using environment variables:
+
+```bash
+# Generate secure random strings for production
+JWT_ACCESS_SECRET=$(openssl rand -base64 32)
+JWT_REFRESH_SECRET=$(openssl rand -base64 32)
+
+# Export as environment variables
+export JWT_ACCESS_SECRET
+export JWT_REFRESH_SECRET
+
+# Run the application with the secure secrets
+docker-compose -f docker-compose.standalone.yml up -d
+```
+
+### Method 2: Using an .env File
+
+1. Create a `.env` file in the project root directory:
+
+```
+JWT_ACCESS_SECRET=your-secure-access-token-secret
+JWT_REFRESH_SECRET=your-secure-refresh-token-secret
+```
+
+2. Start the application with Docker Compose:
+
+```bash
+docker-compose -f docker-compose.standalone.yml up -d
+```
+
+### Method 3: Setting Variables Directly in docker-compose.standalone.yml
+
+For development or testing, you can directly modify the docker-compose file, but **avoid this in production**:
+
+```yaml
+services:
+  server:
+    environment:
+      - JWT_ACCESS_SECRET=your-custom-secret
+      # ...other environment variables
+  
+  auth-service:
+    environment:
+      - JWT_ACCESS_SECRET=your-custom-secret
+      - JWT_REFRESH_SECRET=your-refresh-secret
+      # ...other environment variables
+```
+
+### Understanding the MongoDB Configuration
+
+The application uses two separate MongoDB databases:
+
+1. **Auth Service Database**: `auth_db` - Stores user credentials and authentication data
+2. **Main Service Database**: `flashcard_db` - Stores application data (cards, decks, credits)
+
+While both databases use the same MongoDB container in development, you can configure separate MongoDB instances in production for better security and scalability.
 
 ## Contributing
 

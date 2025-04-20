@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
+import jwt from 'jsonwebtoken';
 import { AUTH_API_URL } from '../config/constants';
 
 // Extend the Request interface to include the user property
@@ -25,7 +26,23 @@ export const authenticateJwt = async (req: Request, res: Response, next: NextFun
     
     const token = authHeader.split(' ')[1];
     
-    // Validate token with auth service
+    // Check if JWT_ACCESS_SECRET is available for local verification
+    const jwtSecret = process.env.JWT_ACCESS_SECRET;
+    
+    if (jwtSecret) {
+      // Perform local token verification
+      try {
+        const decoded = jwt.verify(token, jwtSecret);
+        req.user = decoded;
+        next();
+        return;
+      } catch (jwtError) {
+        console.log('Local JWT verification failed, falling back to remote validation');
+        // If local verification fails, fall back to remote validation
+      }
+    }
+    
+    // If no JWT secret available or local verification failed, validate token with auth service
     try {
       const response = await axios.post(`${AUTH_API_URL}/api/auth/validate-token`, { token });
       

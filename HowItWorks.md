@@ -13,6 +13,7 @@ This document explains the authentication workflows for all server endpoints in 
 7. [Server-Side Authentication Flow](#server-side-authentication-flow)
 8. [Detailed Endpoint Authentication](#detailed-endpoint-authentication)
 9. [JWT Design Considerations](#jwt-design-considerations)
+10. [Setting Up JWT Secret Keys](#setting-up-jwt-secret-keys)
 
 ## Authentication Overview
 
@@ -574,6 +575,111 @@ To improve the integration:
 2. Use standardized token validation (OAuth 2.0 / OpenID Connect principles)
 3. Consider implementing introspection endpoint for token validation
 4. Cache validation results to reduce external service calls
+
+## Setting Up JWT Secret Keys
+
+To ensure secure and efficient authentication between your main application and the external authentication service, you need to correctly configure the JWT secret keys. This section explains how to set up and manage these shared secrets.
+
+### Why Shared Secrets Are Important
+
+When the main application and authentication service share the same JWT secret keys:
+
+1. The main application can verify tokens locally, reducing API calls to the auth service
+2. This improves performance and reduces potential failure points
+3. The system becomes more resilient to temporary auth service outages
+
+### MongoDB Configuration
+
+**Important Note**: The authentication server and the main application server use separate MongoDB databases:
+
+1. **Authentication Server Database**:
+   - Default connection string: `mongodb://mongo:27017/auth_db`
+   - Contains user data, authentication tokens, and verification records
+   - Stores user credentials, roles, and verification status
+
+2. **Main Application Server Database**:
+   - Default connection string: `mongodb://mongo:27017/flashcard_db`
+   - Contains application-specific data like flashcards, decks, and user credits
+   - Does not store authentication credentials
+
+While they currently use the same MongoDB container with different database names (`auth_db` vs `flashcard_db`), in production you can:
+
+- Use completely separate MongoDB instances
+- Configure different access controls and backup policies
+- Scale each database independently based on workload
+
+### Configuration Options
+
+There are two main approaches to JWT token validation:
+
+1. **Remote Validation** (currently implemented): Send the token to the auth service for validation
+2. **Local Validation**: Verify the token directly in the main application using the shared secret
+
+### Setting Up Shared JWT Secrets
+
+#### Option 1: Environment Variables (Recommended for Production)
+
+1. **Create a `.env.production` file in the server directory**:
+
+   ```
+   # Server environment variables
+   PORT=4000
+   NODE_ENV=production
+   MONGO_URI=mongodb://your-mongo-connection-string
+   
+   # JWT Configuration
+   JWT_ACCESS_SECRET=your-secure-access-token-secret
+   AUTH_API_URL=http://your-auth-service-url
+   ```
+
+2. **Ensure the same secret is used in the authentication service**:
+
+   ```
+   # Auth service environment variables
+   JWT_ACCESS_SECRET=your-secure-access-token-secret
+   JWT_REFRESH_SECRET=your-secure-refresh-token-secret
+   ```
+
+3. **Generate secure secrets for production**:
+
+   ```bash
+   # Generate secure random strings for JWT tokens
+   openssl rand -base64 32  # Use output for JWT_ACCESS_SECRET
+   openssl rand -base64 32  # Use output for JWT_REFRESH_SECRET
+   ```
+
+#### Option 2: Secrets Management Service (For Cloud Deployments)
+
+For AWS, Azure, or Google Cloud deployments, use their secrets management services:
+
+1. Store the JWT secrets in AWS Secrets Manager, Azure Key Vault, or Google Secret Manager
+2. Configure both services to retrieve the secrets from the same source
+3. Ensure proper access policies are in place
+
+### Modifying the Middleware for Local Token Verification
+
+To enable local token verification, you need to modify the authentication middleware. This will be covered in a future update to the application. The changes would include:
+
+1. Adding JWT verification using the shared secret
+2. Falling back to remote validation if local validation fails
+3. Caching validation results to improve performance
+
+### Security Best Practices
+
+1. **Rotate secrets regularly**: Change your JWT secrets periodically
+2. **Use different secrets** for development and production
+3. **Never commit secrets** to version control
+4. **Use strong, random secrets** generated through secure methods
+5. **Limit secret access** to only the services that need them
+
+### Deployment Considerations
+
+When deploying to different environments, ensure consistent secret management:
+
+1. **Development**: Use simple secrets but never reuse them in production
+2. **Staging**: Mirror production secret management to test authentication flows
+3. **Production**: Use a robust secrets management approach as outlined above
+4. **Multi-region**: Ensure all instances have access to the same secrets
 
 ## Conclusion
 

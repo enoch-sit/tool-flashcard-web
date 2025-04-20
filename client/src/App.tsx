@@ -1,14 +1,19 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CreditProvider } from './contexts/CreditContext';
 
-// Placeholder components for routes
-const Dashboard = () => <div>Dashboard Page</div>;
-const Login = () => <div>Login Page</div>;
-const Signup = () => <div>Signup Page</div>;
-const Decks = () => <div>Decks Page</div>;
-const Admin = () => <div>Admin Dashboard</div>;
+// Import our components
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import UserDashboard from './pages/user/Dashboard';
+import Admin from './pages/admin';
+
+// Protected route component to handle route protection
+const ProtectedRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => {
+  const isAuthenticated = localStorage.getItem('flashcard_token') !== null;
+  return isAuthenticated ? <>{element}</> : <Navigate to="/login" />;
+};
 
 const App: React.FC = () => {
   return (
@@ -18,13 +23,18 @@ const App: React.FC = () => {
           <header className="bg-indigo-600 text-white p-4 mb-4">
             <h1 className="text-2xl font-bold">Flashcard App</h1>
           </header>
-          <main className="container mx-auto px-4">
+          <main className="container mx-auto px-4 pb-8">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
-              <Route path="/decks/*" element={<Decks />} />
-              <Route path="/admin/*" element={<Admin />} />
+              
+              {/* Protected routes */}
+              <Route path="/" element={<ProtectedRoute element={<UserDashboard />} />} />
+              <Route path="/admin/*" element={<ProtectedRoute element={<Admin />} />} />
+              
+              {/* Catch-all redirect to home */}
+              <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
         </div>

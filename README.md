@@ -13,6 +13,14 @@ A comprehensive web-based flashcard application with credit-based system for cre
     - [Installation](#installation)
     - [Running Locally](#running-locally)
     - [Docker Setup](#docker-setup)
+    - [Docker Development Workflow](#docker-development-workflow)
+      - [Development Mode](#development-mode)
+      - [Handling Code Updates](#handling-code-updates)
+        - [Client-side Code Changes](#client-side-code-changes)
+        - [Server-side Code Changes](#server-side-code-changes)
+        - [Complete Rebuild](#complete-rebuild)
+        - [Database Changes](#database-changes)
+      - [Troubleshooting Common Issues](#troubleshooting-common-issues)
   - [API Documentation](#api-documentation)
     - [Authentication Endpoints](#authentication-endpoints)
     - [Card Endpoints](#card-endpoints)
@@ -120,6 +128,110 @@ For standalone mode (including mock auth service):
 ```bash
 docker-compose -f docker-compose.standalone.yml up -d
 ```
+
+### Docker Development Workflow
+
+When developing with Docker, you'll need to rebuild and restart containers when making code changes. Below are instructions for managing the development workflow:
+
+#### Development Mode
+
+The application is configured for development with hot-reloading on both client and server sides, but Docker containers need special handling:
+
+1. Start the application in development mode:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+2. To monitor logs during development:
+
+   ```bash
+   # All containers
+   docker-compose logs -f
+   
+   # Specific container (e.g., client or server)
+   docker-compose logs -f client
+   docker-compose logs -f server
+   ```
+
+#### Handling Code Updates
+
+##### Client-side Code Changes
+
+React client code has hot reloading enabled, so most frontend changes will be automatically applied when you save files. However, if you:
+
+1. Install new npm packages
+2. Modify package.json
+3. Change webpack or other build configurations
+
+You'll need to rebuild the client container:
+
+```bash
+# Rebuild just the client container
+docker-compose build client
+docker-compose up -d client
+```
+
+##### Server-side Code Changes
+
+The server uses nodemon for auto-restarting on code changes, but in some cases, you may need to rebuild:
+
+1. When installing new npm packages
+2. When modifying package.json
+3. When changing TypeScript configurations
+
+To rebuild the server container:
+
+```bash
+# Rebuild just the server container
+docker-compose build server
+docker-compose up -d server
+```
+
+##### Complete Rebuild
+
+For major changes affecting multiple services or Docker configurations:
+
+```bash
+# Stop all containers first
+docker-compose down
+
+# Rebuild all containers with no cache (for a clean build)
+docker-compose build --no-cache
+
+# Start everything up again
+docker-compose up -d
+```
+
+##### Database Changes
+
+If your schema changes affect the database structure:
+
+1. For development data (that can be reset):
+
+   ```bash
+   docker-compose down -v  # This removes volumes!
+   docker-compose up -d
+   ```
+
+2. For preserving data but updating the application:
+
+   ```bash
+   # Backup your data first if needed
+   docker exec -it flashcard-web_mongo_1 mongodump --out /data/backup
+
+   # Then rebuild and restart without removing volumes
+   docker-compose build
+   docker-compose down
+   docker-compose up -d
+   ```
+
+#### Troubleshooting Common Issues
+
+- **Container not updating**: Ensure you're rebuilding with `docker-compose build <service>` after making significant changes
+- **Port conflicts**: Use `docker-compose down` and then `docker-compose up -d` if you encounter port conflicts
+- **Missing modules**: If new modules are missing, ensure you're rebuilding the container after updating package.json
+- **Permission issues**: Some file changes might cause permission problems; use `chmod -R 777 ./` on the project directory (use with caution)
 
 ## API Documentation
 
